@@ -49,3 +49,5 @@ dist/
 
 # Jupyter
 .ipynb_checkpoints/
+
+!database/physio_twin.db
