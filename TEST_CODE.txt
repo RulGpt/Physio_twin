@@ -1,0 +1,1030 @@
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\tests\__init__.py
+============================================================
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\tests\test_baseline.py
+============================================================
+import pytest
+
+from model.baseline import (
+    BaselineStatistics,
+    calculate_baseline,
+    calculate_z_score,
+)
+
+
+def test_calculate_baseline():
+
+    baseline = calculate_baseline(
+        [6.0, 7.0, 8.0, 7.0, 7.5]
+    )
+
+    assert baseline.count == 5
+    assert baseline.mean == pytest.approx(7.1)
+    assert baseline.median == pytest.approx(7.0)
+    assert baseline.minimum == 6.0
+    assert baseline.maximum == 8.0
+
+
+def test_baseline_standard_deviation():
+
+    baseline = calculate_baseline(
+        [6.0, 7.0, 8.0]
+    )
+
+    assert baseline.standard_deviation == pytest.approx(
+        1.0
+    )
+
+
+def test_empty_baseline_is_rejected():
+
+    with pytest.raises(ValueError):
+
+        calculate_baseline([])
+
+
+def test_non_finite_values_are_rejected():
+
+    with pytest.raises(ValueError):
+
+        calculate_baseline(
+            [7.0, float("nan")]
+        )
+
+
+def test_z_score():
+
+    baseline = calculate_baseline(
+        [6.0, 7.0, 8.0]
+    )
+
+    z = calculate_z_score(
+        value=9.0,
+        baseline=baseline,
+    )
+
+    assert z == pytest.approx(2.0)
+
+
+def test_z_score_below_baseline():
+
+    baseline = calculate_baseline(
+        [6.0, 7.0, 8.0]
+    )
+
+    z = calculate_z_score(
+        value=5.0,
+        baseline=baseline,
+    )
+
+    assert z == pytest.approx(-2.0)
+
+
+def test_single_observation_has_no_variability_information():
+
+    baseline = calculate_baseline(
+        [7.0]
+    )
+
+    z = calculate_z_score(
+        value=10.0,
+        baseline=baseline,
+    )
+
+    assert z == 0.0
+
+
+def test_zero_variance_baseline():
+
+    baseline = calculate_baseline(
+        [7.0, 7.0, 7.0]
+    )
+
+    z = calculate_z_score(
+        value=10.0,
+        baseline=baseline,
+    )
+
+    assert z == 0.0
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\tests\test_identifiability.py
+============================================================
+import numpy as np
+import pytest
+
+from model.identifiability import (
+    default_parameter_plans,
+    excitation_report,
+    observability_matrix,
+    observability_report,
+    transition_regressor,
+)
+from model.synthetic import make_synthetic_dataset
+from model.state_space import StateSpaceConfig
+
+
+@pytest.fixture
+def config():
+    return StateSpaceConfig(
+        A=np.array([
+            [0.70, 0.05, 0.05],
+            [0.03, 0.75, 0.02],
+            [0.02, 0.03, 0.60],
+        ]),
+        B=np.array([
+            [0.10, 0.08, 0.05],
+            [-0.04, -0.03, -0.02],
+            [0.08, 0.12, 0.04],
+        ]),
+        C=np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]),
+        Q=np.diag([0.01, 0.01, 0.02]),
+        R=np.diag([0.04, 0.04]),
+        initial_state=np.array([0.5, 0.5, 0.2]),
+        initial_covariance=np.diag([0.10, 0.10, 0.20]),
+    )
+
+
+def test_observability_matrix_shape(config):
+    matrix = observability_matrix(config)
+    assert matrix.shape == (6, 3)
+
+
+def test_current_model_is_locally_observable(config):
+    report = observability_report(config)
+    assert report.rank == 3
+    assert report.observable
+    assert np.all(np.isfinite(report.singular_values))
+    assert report.condition_number < 1e6
+
+
+def test_decoupled_load_is_not_observable(config):
+    A = config.A.copy()
+    A[0, 2] = 0.0
+    A[1, 2] = 0.0
+    decoupled = StateSpaceConfig(
+        A=A,
+        B=config.B,
+        C=config.C,
+        Q=config.Q,
+        R=config.R,
+        initial_state=config.initial_state,
+        initial_covariance=config.initial_covariance,
+    )
+    report = observability_report(decoupled)
+    assert report.rank == 2
+    assert not report.observable
+
+
+def test_transition_regressor_shape():
+    states = np.ones((20, 3))
+    inputs = np.ones((20, 3))
+    XU = transition_regressor(states, inputs)
+    assert XU.shape == (20, 6)
+
+
+def test_synthetic_inputs_can_excitate_known_state_regressor(config):
+    dataset = make_synthetic_dataset(config, days=250, seed=42)
+    report = excitation_report(dataset.true_states[:-1], dataset.inputs[:-1])
+
+    assert report.rank == 6
+    assert report.full_rank
+    assert np.isfinite(report.condition_number)
+
+
+def test_constant_inputs_can_destroy_excitation():
+    states = np.random.default_rng(1).normal(size=(100, 3))
+    inputs = np.ones((100, 3))
+    report = excitation_report(states, inputs)
+
+    assert report.rank < 6
+    assert not report.full_rank
+
+
+def test_parameter_plan_is_explicit_and_progressive():
+    plans = default_parameter_plans()
+
+    assert [p.name for p in plans] == [
+        "population_observed_core",
+        "population_full_latent",
+        "personal_adaptation_restricted",
+    ]
+
+    assert plans[0].total_parameters == 14
+    assert plans[1].total_parameters == 23
+    assert plans[2].total_parameters == 8
+
+    for plan in plans:
+        assert plan.total_parameters > 0
+        assert plan.rationale
+
+
+def test_invalid_transition_regressor_inputs():
+    with pytest.raises(ValueError):
+        transition_regressor(np.ones((10, 2)), np.ones((10, 3)))
+
+    with pytest.raises(ValueError):
+        transition_regressor(np.ones((10, 3)), np.ones((9, 3)))
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\tests\test_mismatch.py
+============================================================
+import numpy as np
+import pytest
+
+from model.mismatch import compare_scenarios, simulate_mismatched_process
+from model.robustness import evaluate_all_mismatches, evaluate_mismatch
+from model.state_space import StateSpaceConfig
+
+
+@pytest.fixture
+def config():
+    return StateSpaceConfig(
+        A=np.array([
+            [0.70, 0.05, 0.05],
+            [0.03, 0.75, 0.02],
+            [0.02, 0.03, 0.60],
+        ]),
+        B=np.array([
+            [0.10, 0.08, 0.05],
+            [-0.04, -0.03, -0.02],
+            [0.08, 0.12, 0.04],
+        ]),
+        C=np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]),
+        Q=np.diag([0.01, 0.01, 0.02]),
+        R=np.diag([0.04, 0.04]),
+        initial_state=np.array([0.5, 0.5, 0.2]),
+        initial_covariance=np.diag([0.10, 0.10, 0.20]),
+    )
+
+
+def test_each_mismatch_has_expected_shape(config):
+    for scenario in (
+        "nonlinear_saturation",
+        "delayed_sleep",
+        "correlated_noise",
+        "person_shift",
+    ):
+        data = simulate_mismatched_process(
+            config, days=80, seed=1, scenario=scenario
+        )
+        assert data.true_states.shape == (80, 3)
+        assert data.inputs.shape == (80, 3)
+        assert data.observations.shape == (80, 2)
+        assert np.all(np.isfinite(data.true_states))
+        assert np.all(np.isfinite(data.observations))
+
+
+def test_mismatch_generator_is_reproducible(config):
+    a = simulate_mismatched_process(
+        config, days=80, seed=12, scenario="delayed_sleep"
+    )
+    b = simulate_mismatched_process(
+        config, days=80, seed=12, scenario="delayed_sleep"
+    )
+    np.testing.assert_allclose(a.true_states, b.true_states)
+    np.testing.assert_allclose(a.observations, b.observations)
+
+
+def test_invalid_scenario_is_rejected(config):
+    with pytest.raises(ValueError):
+        simulate_mismatched_process(
+            config, days=20, seed=1, scenario="made_up_scenario"
+        )
+
+
+def test_all_scenarios_are_distinct(config):
+    datasets = compare_scenarios(config, days=80, seed=5)
+    assert set(datasets) == {
+        "nonlinear_saturation",
+        "delayed_sleep",
+        "correlated_noise",
+        "person_shift",
+    }
+
+    assert not np.allclose(
+        datasets["nonlinear_saturation"].true_states,
+        datasets["delayed_sleep"].true_states,
+    )
+
+
+def test_robustness_metrics_are_finite_and_nonnegative(config):
+    datasets = compare_scenarios(config, days=120, seed=42)
+    results = evaluate_all_mismatches(config, datasets)
+
+    assert len(results) == 4
+    for result in results:
+        assert result.rmse_fatigue >= 0
+        assert result.rmse_recovery >= 0
+        assert result.rmse_load >= 0
+        assert result.mae_fatigue >= 0
+        assert result.mae_recovery >= 0
+        assert result.mae_load >= 0
+        assert result.mean_normalized_innovation >= 0
+        assert np.all(np.isfinite([
+            result.rmse_fatigue,
+            result.rmse_recovery,
+            result.rmse_load,
+            result.mae_fatigue,
+            result.mae_recovery,
+            result.mae_load,
+            result.mean_normalized_innovation,
+        ]))
+
+
+def test_model_mismatch_is_detectable_with_innovation_diagnostic(config):
+    dataset = simulate_mismatched_process(
+        config,
+        days=180,
+        seed=42,
+        scenario="person_shift",
+    )
+    result = evaluate_mismatch(config, dataset)
+
+    # This is deliberately a diagnostic threshold, not a model-selection
+    # threshold. The point is that a materially shifted person can produce
+    # residuals larger than the assumed observation-noise scale.
+    assert result.mean_normalized_innovation > 0.5
+
+
+def test_correlated_noise_changes_the_assumption_without_breaking_filter(config):
+    dataset = simulate_mismatched_process(
+        config,
+        days=150,
+        seed=7,
+        scenario="correlated_noise",
+    )
+    result = evaluate_mismatch(config, dataset)
+
+    assert result.rmse_fatigue < 0.50
+    assert result.rmse_recovery < 0.50
+    assert result.rmse_load < 0.80
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\tests\test_parameter_recovery.py
+============================================================
+import numpy as np
+import pytest
+
+from model.estimator import PopulationCoreMLE, fit_population_core
+from model.synthetic import make_synthetic_dataset
+from model.parameter_recovery import run_parameter_recovery
+from model.state_space import StateSpaceConfig, spectral_radius
+
+
+@pytest.fixture
+def config():
+    return StateSpaceConfig(
+        A=np.array([
+            [0.70, 0.05, 0.05],
+            [0.03, 0.75, 0.02],
+            [0.02, 0.03, 0.60],
+        ]),
+        B=np.array([
+            [0.10, 0.08, 0.05],
+            [-0.04, -0.03, -0.02],
+            [0.08, 0.12, 0.04],
+        ]),
+        C=np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]),
+        Q=np.diag([0.01, 0.01, 0.02]),
+        R=np.diag([0.04, 0.04]),
+        initial_state=np.array([0.5, 0.5, 0.2]),
+        initial_covariance=np.diag([0.10, 0.10, 0.20]),
+    )
+
+
+def test_parameter_model_exposes_14_parameters(config):
+    data = make_synthetic_dataset(config, days=30, seed=1)
+    model = PopulationCoreMLE(data.observations, data.inputs, config)
+
+    assert len(model.start_params) == 14
+    assert len(model.param_names) == 14
+
+
+def test_variance_transform_is_positive(config):
+    data = make_synthetic_dataset(config, days=30, seed=1)
+    model = PopulationCoreMLE(data.observations, data.inputs, config)
+
+    transformed = model.transform_params(
+        np.array([0.0] * 10 + [-10.0, 0.0, -5.0, 1.0])
+    )
+
+    assert np.all(transformed[10:] > 0)
+
+
+def test_fit_returns_finite_parameters(config):
+    data = make_synthetic_dataset(config, days=100, seed=3)
+    result = fit_population_core(
+        data.observations,
+        data.inputs,
+        config,
+        maxiter=40,
+    )
+
+    assert result.A.shape == (3, 3)
+    assert result.B.shape == (3, 3)
+    assert result.Q.shape == (3, 3)
+    assert result.R.shape == (2, 2)
+    assert np.all(np.isfinite(result.constrained_params))
+    assert np.isfinite(result.llf)
+    assert spectral_radius(result.A) < 0.995
+
+
+def test_parameter_recovery_experiment_is_reproducible(config):
+    a = run_parameter_recovery(config, days=100, seed=10, maxiter=40)
+    b = run_parameter_recovery(config, days=100, seed=10, maxiter=40)
+
+    assert a.days == b.days
+    assert np.isclose(a.A_rmse, b.A_rmse)
+    assert np.isclose(a.B_rmse, b.B_rmse)
+    assert np.isclose(a.log_likelihood, b.log_likelihood)
+
+
+def test_parameter_recovery_metrics_are_finite(config):
+    metrics = run_parameter_recovery(
+        config,
+        days=180,
+        seed=42,
+        maxiter=60,
+    )
+
+    assert metrics.A_rmse >= 0
+    assert metrics.B_rmse >= 0
+    assert metrics.Q_rmse >= 0
+    assert metrics.R_rmse >= 0
+    assert metrics.one_step_observation_rmse >= 0
+    assert metrics.spectral_radius < 0.995
+    assert np.isfinite(metrics.log_likelihood)
+
+
+def test_shorter_history_is_allowed_but_not_assumed_sufficient(config):
+    short = run_parameter_recovery(
+        config,
+        days=60,
+        seed=2,
+        maxiter=30,
+    )
+    long = run_parameter_recovery(
+        config,
+        days=180,
+        seed=2,
+        maxiter=30,
+    )
+
+    # This test deliberately does not assert that long data must always win.
+    # It only establishes that both experiments run and produce measurable
+    # quantities; empirical recovery quality is reported, not hard-coded.
+    assert short.days == 60
+    assert long.days == 180
+    assert np.isfinite(short.A_rmse)
+    assert np.isfinite(long.A_rmse)
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\tests\test_preprocessing.py
+============================================================
+from datetime import date
+
+import pytest
+
+from model.preprocessing import (
+    build_model_features,
+    calculate_exercise_load,
+    calculate_sleep_deficit,
+    normalize_scale_1_to_10,
+)
+from model.schemas import (
+    DailyRecord,
+    ExerciseRecord,
+    SleepRecord,
+    SubjectiveIndices,
+)
+
+
+def make_daily_record():
+    return DailyRecord(
+        date=date.today(),
+        sleep=SleepRecord(
+            duration_hours=5.5,
+            quality=6,
+        ),
+        exercise=ExerciseRecord(
+            duration_minutes=60,
+            intensity=7,
+        ),
+        subjective=SubjectiveIndices(
+            stress=8,
+            fatigue=7,
+            recovery=4,
+        ),
+    )
+
+
+def test_sleep_deficit():
+
+    result = calculate_sleep_deficit(
+        sleep_duration_hours=5.5,
+        reference_sleep_hours=7.5,
+    )
+
+    assert result == 2.0
+
+
+def test_sleep_deficit_never_negative():
+
+    result = calculate_sleep_deficit(
+        sleep_duration_hours=8.0,
+        reference_sleep_hours=7.5,
+    )
+
+    assert result == 0.0
+
+
+def test_exercise_load():
+
+    result = calculate_exercise_load(
+        duration_minutes=60,
+        intensity=7,
+    )
+
+    assert result == 42.0
+
+
+def test_exercise_load_without_intensity():
+
+    result = calculate_exercise_load(
+        duration_minutes=60,
+        intensity=None,
+    )
+
+    assert result == 0.0
+
+
+def test_normalize_scale():
+
+    assert normalize_scale_1_to_10(10) == 1.0
+    assert normalize_scale_1_to_10(5) == 0.5
+
+
+def test_normalize_scale_rejects_invalid_value():
+
+    with pytest.raises(ValueError):
+        normalize_scale_1_to_10(11)
+
+
+def test_build_model_features():
+
+    record = make_daily_record()
+
+    features = build_model_features(
+        record,
+        reference_sleep_hours=7.5,
+    )
+
+    assert features["sleep_deficit_hours"] == 2.0
+    assert features["exercise_load"] == 42.0
+    assert features["stress_normalized"] == 0.8
+    assert features["fatigue_observed_normalized"] == 0.7
+    assert features["recovery_observed_normalized"] == 0.4
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\tests\test_schemas.py
+============================================================
+from datetime import date
+
+import pytest
+from pydantic import ValidationError
+
+from model.schemas import (
+    DailyRecord,
+    DietRecord,
+    ExerciseRecord,
+    SleepRecord,
+    SubjectiveIndices,
+)
+
+
+def make_valid_daily_record():
+    return DailyRecord(
+        date=date.today(),
+        sleep=SleepRecord(
+            duration_hours=7.5,
+            quality=8,
+            consistency=8,
+        ),
+        exercise=ExerciseRecord(
+            duration_minutes=40,
+            intensity=6,
+            sessions=1,
+        ),
+        subjective=SubjectiveIndices(
+            stress=4,
+            fatigue=3,
+            recovery=8,
+        ),
+        diet=DietRecord(
+            calories=2100,
+            protein_grams=85,
+            fruit_vegetable_servings=4,
+            water_liters=2.5,
+            caffeine_mg=120,
+        ),
+    )
+
+
+def test_valid_daily_record():
+    record = make_valid_daily_record()
+
+    assert record.sleep.duration_hours == 7.5
+    assert record.subjective.fatigue == 3
+    assert record.exercise.duration_minutes == 40
+
+
+def test_fatigue_must_be_between_1_and_10():
+    with pytest.raises(ValidationError):
+        SubjectiveIndices(
+            stress=4,
+            fatigue=11,
+            recovery=8,
+        )
+
+
+def test_sleep_duration_cannot_be_negative():
+    with pytest.raises(ValidationError):
+        SleepRecord(
+            duration_hours=-1,
+            quality=8,
+        )
+
+
+def test_unknown_fields_are_rejected():
+    with pytest.raises(ValidationError):
+        SleepRecord(
+            duration_hours=7,
+            quality=8,
+            unknown_field=123,
+        )
+
+
+def test_future_daily_record_is_rejected():
+    future_date = date(
+        date.today().year + 1,
+        1,
+        1,
+    )
+
+    with pytest.raises(ValidationError):
+        DailyRecord(
+            date=future_date,
+            sleep=SleepRecord(
+                duration_hours=7,
+                quality=8,
+            ),
+            exercise=ExerciseRecord(
+                duration_minutes=30,
+            ),
+            subjective=SubjectiveIndices(
+                stress=4,
+                fatigue=3,
+                recovery=8,
+            ),
+        )
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\tests\test_state_space.py
+============================================================
+import numpy as np
+import pytest
+
+from model.state_space import (
+    StateSpaceConfig,
+    filter_step,
+    forecast,
+    is_positive_definite,
+    is_positive_semidefinite,
+    predict_state,
+    spectral_radius,
+    update_state,
+)
+
+
+@pytest.fixture
+def config():
+    return StateSpaceConfig(
+        A=np.array([
+            [0.70, 0.05, 0.05],
+            [0.03, 0.75, 0.02],
+            [0.02, 0.03, 0.60],
+        ]),
+        B=np.array([
+            [0.10, 0.08, 0.05],
+            [-0.04, -0.03, -0.02],
+            [0.08, 0.12, 0.04],
+        ]),
+        C=np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]),
+        Q=np.diag([0.01, 0.01, 0.02]),
+        R=np.diag([0.04, 0.04]),
+        initial_state=np.array([0.5, 0.5, 0.2]),
+        initial_covariance=np.diag([0.10, 0.10, 0.20]),
+    )
+
+
+def test_matrix_validation_and_stability(config):
+    assert config.spectral_radius < 1.0
+    config.assert_stable()
+    assert is_positive_semidefinite(config.Q)
+    assert is_positive_definite(config.R)
+    assert np.isclose(config.spectral_radius, spectral_radius(config.A))
+
+
+def test_unstable_transition_is_rejected():
+    config = StateSpaceConfig(
+        A=np.eye(3),
+        B=np.zeros((3, 3)),
+        C=np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
+        Q=np.eye(3),
+        R=np.eye(2),
+        initial_state=np.zeros(3),
+        initial_covariance=np.eye(3),
+    )
+    with pytest.raises(ValueError, match="strictly stable"):
+        config.assert_stable()
+
+
+def test_prediction_equation(config):
+    state = np.array([0.4, 0.6, 0.2])
+    covariance = np.eye(3) * 0.1
+    inputs = np.array([0.2, 0.5, 0.3])
+
+    predicted_state, predicted_covariance = predict_state(
+        state, covariance, inputs, config
+    )
+
+    np.testing.assert_allclose(
+        predicted_state,
+        config.A @ state + config.B @ inputs,
+    )
+    np.testing.assert_allclose(
+        predicted_covariance,
+        config.A @ covariance @ config.A.T + config.Q,
+    )
+    assert is_positive_semidefinite(predicted_covariance)
+
+
+def test_full_observation_update_reduces_uncertainty(config):
+    predicted_state = np.array([0.6, 0.4, 0.3])
+    predicted_covariance = np.diag([0.20, 0.20, 0.20])
+    observation = np.array([0.5, 0.5])
+
+    updated_state, updated_covariance, gain = update_state(
+        predicted_state, predicted_covariance, observation, config
+    )
+
+    assert updated_state[0] < predicted_state[0]
+    assert updated_state[1] > predicted_state[1]
+    assert np.trace(updated_covariance) < np.trace(predicted_covariance)
+    assert np.allclose(updated_covariance, updated_covariance.T)
+    assert is_positive_semidefinite(updated_covariance)
+    assert gain.shape == (3, 2)
+
+
+def test_partial_observation_updates_only_available_component(config):
+    predicted_state = np.array([0.6, 0.4, 0.3])
+    predicted_covariance = np.diag([0.20, 0.20, 0.20])
+    observation = np.array([0.5, np.nan])
+
+    updated_state, updated_covariance, gain = update_state(
+        predicted_state, predicted_covariance, observation, config
+    )
+
+    assert updated_state[0] < predicted_state[0]
+    assert np.isclose(updated_state[1], predicted_state[1])
+    assert np.isclose(gain[1, 1], 0.0)
+    assert is_positive_semidefinite(updated_covariance)
+
+
+def test_all_missing_observations_equal_prediction(config):
+    predicted_state = np.array([0.6, 0.4, 0.3])
+    predicted_covariance = np.diag([0.20, 0.20, 0.20])
+
+    updated_state, updated_covariance, gain = update_state(
+        predicted_state, predicted_covariance, np.array([np.nan, np.nan]), config
+    )
+
+    np.testing.assert_allclose(updated_state, predicted_state)
+    np.testing.assert_allclose(updated_covariance, predicted_covariance)
+    assert np.allclose(gain, 0.0)
+
+
+def test_filter_step_and_forecast(config):
+    state = config.initial_state
+    covariance = config.initial_covariance
+    inputs = np.array([0.2, 0.4, 0.3])
+    observation = np.array([0.55, 0.60])
+
+    state, covariance, predicted, gain = filter_step(
+        state, covariance, inputs, observation, config
+    )
+
+    assert state.shape == (3,)
+    assert covariance.shape == (3, 3)
+    assert predicted.shape == (3,)
+    assert gain.shape == (3, 2)
+
+    states, covariances = forecast(
+        state,
+        covariance,
+        np.array([
+            [0.1, 0.3, 0.2],
+            [0.2, 0.1, 0.4],
+            [0.0, 0.0, 0.1],
+        ]),
+        config,
+    )
+
+    assert states.shape == (3, 3)
+    assert covariances.shape == (3, 3, 3)
+    for covariance in covariances:
+        assert is_positive_semidefinite(covariance)
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\tests\test_synthetic.py
+============================================================
+import numpy as np
+import pytest
+
+from model.experiment import (
+    forecast_rmse,
+    mae_by_state,
+    rmse_by_state,
+    run_filter,
+)
+from model.state_space import StateSpaceConfig
+from model.synthetic import (
+    make_synthetic_dataset,
+    simulate_observations,
+    simulate_true_states,
+)
+
+
+@pytest.fixture
+def config():
+    return StateSpaceConfig(
+        A=np.array([
+            [0.70, 0.05, 0.05],
+            [0.03, 0.75, 0.02],
+            [0.02, 0.03, 0.60],
+        ]),
+        B=np.array([
+            [0.10, 0.08, 0.05],
+            [-0.04, -0.03, -0.02],
+            [0.08, 0.12, 0.04],
+        ]),
+        C=np.array([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]),
+        Q=np.diag([0.01, 0.01, 0.02]),
+        R=np.diag([0.04, 0.04]),
+        initial_state=np.array([0.5, 0.5, 0.2]),
+        initial_covariance=np.diag([0.10, 0.10, 0.20]),
+    )
+
+
+def test_synthetic_shapes_and_reproducibility(config):
+    a = make_synthetic_dataset(config, days=100, seed=7)
+    b = make_synthetic_dataset(config, days=100, seed=7)
+
+    assert a.true_states.shape == (100, 3)
+    assert a.inputs.shape == (100, 3)
+    assert a.observations.shape == (100, 2)
+    np.testing.assert_allclose(a.true_states, b.true_states)
+    np.testing.assert_allclose(a.observations, b.observations)
+
+
+def test_true_state_simulation_is_independent_of_observation_generation(config):
+    rng = np.random.default_rng(1)
+    inputs = np.ones((20, 3)) * 0.2
+    true_states = simulate_true_states(config, inputs, rng)
+
+    observations, mask = simulate_observations(
+        config,
+        true_states,
+        np.random.default_rng(2),
+    )
+
+    assert mask.sum() == 0
+    assert not np.allclose(observations, true_states[:, :2])
+
+
+def test_filter_recovers_hidden_states_reasonably(config):
+    dataset = make_synthetic_dataset(config, days=180, seed=42)
+    filtered = run_filter(config, dataset)
+
+    # The first days include cold-start effects. Evaluate the mature portion.
+    truth = dataset.true_states[30:]
+    estimate = filtered.states[30:]
+    rmse = rmse_by_state(truth, estimate)
+    mae = mae_by_state(truth, estimate)
+
+    assert np.all(np.isfinite(rmse))
+    assert np.all(np.isfinite(mae))
+    assert rmse[0] < 0.30
+    assert rmse[1] < 0.30
+    assert rmse[2] < 0.50
+
+
+def test_latent_load_is_estimable_but_less_directly_observed(config):
+    dataset = make_synthetic_dataset(config, days=180, seed=42)
+    filtered = run_filter(config, dataset)
+
+    rmse = rmse_by_state(dataset.true_states[30:], filtered.states[30:])
+
+    # Load has no direct observation channel, so we do not demand it match
+    # fatigue/recovery accuracy. We only verify finite, bounded reconstruction.
+    assert np.isfinite(rmse[2])
+    assert rmse[2] < 0.50
+
+
+def test_missing_observations_do_not_break_filter(config):
+    dataset = make_synthetic_dataset(
+        config,
+        days=150,
+        seed=11,
+        missing_probability=0.25,
+    )
+    filtered = run_filter(config, dataset)
+
+    assert np.all(np.isfinite(filtered.states))
+    assert np.all(np.isfinite(filtered.covariances))
+
+    missing_days = np.all(dataset.missing_observation_mask, axis=1)
+    assert np.any(missing_days)
+
+    for i in np.where(missing_days)[0]:
+        # On a fully missing day, update_state is prediction-only.
+        np.testing.assert_allclose(
+            filtered.states[i],
+            filtered.predicted_states[i],
+        )
+
+
+def test_uncertainty_grows_during_long_missing_run(config):
+    dataset = make_synthetic_dataset(config, days=80, seed=5)
+    dataset.observations[30:45, :] = np.nan
+
+    filtered = run_filter(config, dataset)
+
+    before = np.trace(filtered.covariances[29])
+    during = np.trace(filtered.covariances[44])
+    after = np.trace(filtered.covariances[45])
+
+    assert during > before
+    assert after < during
+
+
+def test_short_horizon_forecast_is_finite(config):
+    dataset = make_synthetic_dataset(config, days=100, seed=9)
+    filtered = run_filter(config, dataset)
+
+    rmse = forecast_rmse(
+        config,
+        filtered,
+        dataset,
+        start_index=70,
+        horizon=7,
+    )
+
+    assert rmse.shape == (3,)
+    assert np.all(np.isfinite(rmse))
+
+
+def test_invalid_synthetic_arguments(config):
+    with pytest.raises(ValueError):
+        make_synthetic_dataset(config, days=1)
+
+    with pytest.raises(ValueError):
+        make_synthetic_dataset(config, days=10, missing_probability=1.0)

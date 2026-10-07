@@ -1,0 +1,600 @@
+
+
+============================================================
+FILE: .\README.md
+============================================================
+
+
+============================================================
+FILE: .\requirements.txt
+============================================================
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+click==8.5.0
+cloudpickle==3.1.2
+colorama==0.4.6
+fastapi==0.141.1
+formulaic==1.2.2
+h11==0.16.0
+idna==3.20
+iniconfig==2.3.0
+interface-meta==2.0.1
+joblib==1.6.0
+narwhals==2.26.0
+numpy==2.4.6
+packaging==26.3
+pandas==3.0.6
+patsy==1.0.3
+plotly==7.1.0
+pluggy==1.6.0
+pydantic==2.13.5
+pydantic-core==2.46.5
+pygments==2.21.0
+pytest==9.1.1
+python-dateutil==2.9.0.post0
+scikit-learn==1.9.1
+scipy==1.17.1
+six==1.17.0
+sqlalchemy==2.1.1
+starlette==1.7.0
+statsmodels==0.15.0
+threadpoolctl==3.7.0
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+tzdata==2026.4
+uvicorn==0.54.0
+wrapt==2.5.0
+
+
+============================================================
+FILE: .\.gitignore
+============================================================
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\docs\M1.1_STATE_SPACE_SPEC.md
+============================================================
+# PHYSIO-TWIN M1.1 — State-Space Model Specification
+
+## State
+X_t = [F_t, R_t, L_t]^T
+
+F = latent fatigue, R = latent recovery, L = latent physiological/routine load.
+
+## Inputs
+U_t = [D_t, E_t, S_t]^T
+
+- D: sleep deficit relative to the selected/reference sleep duration
+- E: exercise load = duration × intensity / 10
+- S: normalized subjective stress = stress / 10
+
+Habit load is intentionally excluded from M1 until a transparent, defensible feature definition is established.
+
+## Observations
+Y_t = [F_obs,t, R_obs,t]^T
+
+F_obs = fatigue / 10
+R_obs = recovery / 10
+
+C = [[1,0,0],[0,1,0]]
+
+Thus fatigue and recovery directly observe their corresponding latent states; load remains latent.
+
+## Transition
+X_(t+1) = A X_t + B U_t + w_t
+
+A is 3×3 and B is 3×3. Their signs and magnitudes are parameters to estimate/validate from longitudinal data, not universal biological constants.
+
+## Noise
+w_t ~ N(0,Q)
+v_t ~ N(0,R)
+
+Q is state/process uncertainty. R is self-report/measurement uncertainty.
+
+## Filtering
+Prediction:
+m^-_t = A m_(t-1) + B U_(t-1)
+P^-_t = A P_(t-1) A^T + Q
+
+Update on available observations:
+e_t = y_t - C m^-_t
+S_t = C P^-_t C^T + R
+K_t = P^-_t C^T S_t^-1
+m_t = m^-_t + K_t e_t
+
+Use the Joseph covariance form:
+P_t = (I-KC)P^-(I-KC)^T + K R K^T
+
+Missing observations are represented by NaN and skipped rather than imputed inside the filter.
+
+## Forecast
+For known/planned future inputs:
+m_(t+k|t) = A m_(t+k-1|t) + B U_(t+k-1)
+P_(t+k|t) = A P_(t+k-1|t) A^T + Q
+
+## Stability
+Check spectral radius rho(A) = max |lambda_i(A)|.
+The initial linear model requires rho(A) < 1.
+
+This is a mathematical stability constraint, not a biological claim.
+
+## Estimation
+Fit population parameters first. Then evaluate personal baseline normalization and partial parameter adaptation only when longitudinal data support it.
+
+Statsmodels provides state-space/Kalman filtering and MLEModel provides maximum-likelihood parameter fitting. The PHYSIO-TWIN mathematical layer remains explicit in project code for auditability.
+
+## Validation
+Use chronological longitudinal splits. Report MAE, RMSE, horizon-specific forecast error, uncertainty calibration/coverage, performance versus baseline models, and behavior as history length increases.
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\docs\M1.2_SYNTHETIC_EXPERIMENT.md
+============================================================
+# PHYSIO-TWIN M1.2 — Synthetic Longitudinal Experiment
+
+## Purpose
+
+M1.2 tests whether the implemented state-space/Kalman model can recover known hidden states from noisy longitudinal observations.
+
+This is a controlled mathematical validation experiment. It is **not evidence of clinical validity**.
+
+## Data-generating process
+
+For each synthetic day:
+
+1. Generate routine inputs:
+   - sleep deficit D
+   - exercise load E
+   - normalized stress S
+2. Generate a hidden state using:
+   `X_(t+1) = A X_t + B U_t + w_t`
+3. Generate observations using:
+   `Y_t = C X_t + v_t`
+4. Randomly remove observations in selected experiments.
+5. Give only inputs and observations to the filter.
+6. Compare estimated states against the hidden ground truth.
+
+The estimator never receives the hidden state.
+
+## Experiments
+
+### E1 — State recovery
+Evaluate RMSE and MAE for:
+- fatigue
+- recovery
+- latent load
+
+The first part of the sequence is excluded from the primary accuracy summary to avoid overstating cold-start performance.
+
+### E2 — Latent load
+Load has no direct observation channel. The experiment checks whether coupling through A/B allows bounded reconstruction.
+
+This is an identifiability experiment, not a claim that real physiological load can necessarily be identified from these two self-report signals.
+
+### E3 — Missing observations
+25% random observation missingness is introduced. The filter should continue operating.
+
+When both observations are missing, the update becomes prediction-only.
+
+### E4 — Uncertainty during missingness
+A deliberately long missing-observation interval should increase covariance because process uncertainty accumulates without measurement correction.
+
+When observations resume, covariance should decrease again.
+
+### E5 — Forecasting
+Evaluate short-horizon forecasts against future hidden states using known future inputs.
+
+## What counts as success
+
+Success in M1.2 means:
+
+- the implementation is numerically stable;
+- estimates remain finite;
+- uncertainty behaves mathematically as expected;
+- hidden states can be recovered under the synthetic data-generating assumptions;
+- missing observations do not crash the filter;
+- forecast errors are measurable and reproducible.
+
+It does **not** mean that the model is validated for real humans.
+
+## Important limitation
+
+The synthetic generator currently uses the same structural state-space family as the estimator. Therefore M1.2 tests implementation correctness and recoverability under controlled assumptions, not model-form correctness for human physiology.
+
+The next scientific step is therefore to introduce deliberately mismatched synthetic generators and then evaluate the model on real/research longitudinal data.
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\docs\M1.3_MODEL_ROBUSTNESS.md
+============================================================
+# PHYSIO-TWIN M1.3 — Model Robustness / Mismatch Experiment
+
+## Why this milestone exists
+
+M1.2 used a synthetic generator from the same broad linear state-space family as the estimator. That validates implementation, but it does not seriously test model assumptions.
+
+M1.3 deliberately creates data that violate selected assumptions.
+
+Model mismatch is a recognized issue in Kalman filtering: state estimation quality depends on the fidelity of the assumed dynamics and noise statistics. NASA literature specifically discusses degradation from erroneous system models and the limitations of linearization/nonlinear assumptions. citeturn0search2turn0search24
+
+## Scenarios
+
+### 1. Nonlinear saturation
+
+Exercise response saturates instead of remaining linear, and stress/exercise interactions are added.
+
+PHYSIO-TWIN still assumes:
+
+`X(t+1) = A X(t) + B U(t) + w(t)`
+
+Purpose: measure the cost of ignoring nonlinear input effects.
+
+### 2. Delayed sleep effect
+
+Sleep deficit influences the next day's state rather than only the current transition.
+
+Purpose: test sensitivity to temporal-delay misspecification.
+
+### 3. Correlated observation noise
+
+Fatigue and recovery measurement errors have positive covariance.
+
+PHYSIO-TWIN's baseline R matrix assumes diagonal measurement noise.
+
+Purpose: test sensitivity to a misspecified observation covariance.
+
+### 4. Person-specific dynamics
+
+The synthetic person has different A and B parameters from the population model.
+
+Purpose: demonstrate why personalization/parameter adaptation matters.
+
+## Metrics
+
+For each scenario:
+
+- fatigue RMSE
+- recovery RMSE
+- load RMSE
+- fatigue MAE
+- recovery MAE
+- load MAE
+- mean normalized innovation
+
+The innovation diagnostic is deliberately transparent. It is not treated as a formal likelihood or p-value.
+
+## Interpretation
+
+M1.3 does **not** have a requirement that the model "win" every scenario.
+
+A scientifically useful result may be:
+
+- robust under mild mismatch;
+- degraded under delayed effects;
+- substantially degraded under person-specific dynamics;
+- systematically miscalibrated under correlated noise.
+
+That information determines what needs to change in later model versions.
+
+## Why we do not immediately replace the Kalman filter
+
+A nonlinear generator does not automatically justify an EKF/UKF.
+
+The classical Kalman filter is optimal under its linear/Gaussian assumptions. Nonlinear systems motivate extensions such as EKF/UKF, but those introduce additional assumptions and implementation complexity. citeturn0search24turn0search0
+
+Therefore M1.3 first quantifies whether the linear model's failure is material.
+
+## Next decision gate
+
+After M1.3:
+
+1. If errors remain acceptable under realistic mismatch, proceed to parameter estimation.
+2. If delay effects dominate, add explicit lagged inputs.
+3. If nonlinear saturation dominates, test a nonlinear model as a challenger.
+4. If person-specific variation dominates, prioritize hierarchical/personal parameter estimation.
+5. If noise misspecification dominates, estimate a full R matrix rather than forcing diagonal R.
+
+No architectural change should be made merely because a more sophisticated filter exists.
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\docs\M2.1_IDENTIFIABILITY.md
+============================================================
+# PHYSIO-TWIN M2.1 — Identifiability & Parameter-Estimation Design
+
+## 1. Objective
+
+Before estimating A, B, Q, and R from human longitudinal data, establish whether the available observations and inputs contain enough information to support those parameters.
+
+The current model has:
+
+- 3 latent states: F, R, L
+- 3 inputs: D, E, S
+- 2 observed channels: fatigue and recovery
+
+The observation matrix is:
+
+C = [[1,0,0],
+     [0,1,0]]
+
+Therefore load L is never directly measured.
+
+## 2. State observability
+
+For a linear time-invariant system, use the finite observability matrix:
+
+O = [C
+     CA
+     CA²]
+
+The implementation reports:
+
+- rank(O)
+- singular values
+- condition number
+
+For the current test A and C, rank(O)=3, so the three-state system is locally observable under the specified linear model.
+
+This does **not** mean that real-world latent physiological load is automatically identifiable. It only establishes observability of the mathematical state representation under the assumed A/C structure.
+
+A useful control experiment removes the load-to-observed-state couplings. Then the rank drops to 2 and L becomes unobservable.
+
+## 3. Parameter excitation
+
+If the hidden state were known, the transition equation can be written as:
+
+X_(t+1) = [A B] [X_t; U_t] + w_t
+
+The regressor therefore has 6 columns.
+
+The M2.1 diagnostic computes the rank and condition number of:
+
+Z = [X U]
+
+using synthetic ground-truth states.
+
+This is deliberately a best-case diagnostic. Real human fitting does not know X.
+
+Constant or poorly varying inputs can make the regressor rank deficient. Therefore a dataset with many rows is not automatically informative.
+
+## 4. Staged parameterization
+
+### Tier 1 — population_observed_core
+
+Free parameters:
+
+- A[0:2,0:2] = 4
+- B rows for F/R = 6
+- diagonal Q for F/R = 2
+- diagonal R = 2
+
+Total = 14.
+
+Purpose: learn the dynamics most directly connected to observed fatigue/recovery before introducing the full latent-load parameter set.
+
+### Tier 2 — population_full_latent
+
+Adds:
+
+- load-related A parameters = 5
+- load-related B parameters = 3
+- Q for load = 1
+
+Total = 23.
+
+This is only attempted after Tier 1 passes validation and the data have sufficient excitation.
+
+### Tier 3 — personal_adaptation_restricted
+
+Per-person adaptation initially changes only:
+
+- fatigue persistence
+- recovery persistence
+- observable-state input sensitivities
+
+Total = 8.
+
+Latent-load dynamics and noise remain population-level initially.
+
+This avoids fitting a full 23-parameter model separately for every user.
+
+## 5. Why Q and R start diagonal
+
+A full symmetric 3×3 Q contains six unique parameters and a full symmetric 2×2 R contains three.
+
+Estimating these correlations immediately adds parameters that are difficult to distinguish from dynamic coupling in small longitudinal datasets.
+
+The first model therefore uses diagonal Q/R.
+
+A full covariance model becomes a challenger only if residual diagnostics and sufficient data support it.
+
+## 6. Parameter constraints
+
+The estimator must enforce:
+
+### Stability
+
+rho(A) < 1
+
+### Noise covariance
+
+Q is positive semidefinite.
+
+R is positive definite.
+
+### Parameter bounds
+
+Input sensitivities should be constrained during fitting to avoid numerical explosions and scientifically implausible extrapolation.
+
+Exact bounds should be determined from data scaling and sensitivity experiments rather than invented as physiological constants.
+
+## 7. Estimation method
+
+The intended population estimator is maximum likelihood through a Kalman-filter likelihood.
+
+Statsmodels' current MLEModel wraps a state-space representation and adds maximum-likelihood fitting; its fit procedure uses a numerical optimizer to maximize the model likelihood. citeturn0search1turn0search18
+
+The Kalman filter evaluates the likelihood through the sequence of prediction errors. citeturn0search6
+
+The PHYSIO-TWIN code will keep parameterization and constraints explicit rather than hiding them inside the library.
+
+## 8. Data split
+
+For parameter estimation, never randomly split individual rows from the same user's timeline.
+
+Use chronological splits, for example:
+
+training period -> validation period -> held-out forecast period
+
+The exact duration should be determined by available data and sensitivity analysis.
+
+## 9. M2.2 gate
+
+Before fitting real data, run a parameter-recovery experiment:
+
+1. Choose known A/B/Q/R.
+2. Generate synthetic longitudinal data.
+3. Hide the states.
+4. Fit parameters from inputs + observations only.
+5. Compare fitted parameters to ground truth.
+6. Repeat across random seeds.
+7. Repeat at different sequence lengths.
+8. Repeat with missing observations.
+9. Report parameter bias, RMSE, and recovery variability.
+
+Only if the estimator can recover parameters under controlled conditions should it be used for real longitudinal fitting.
+
+## 10. Important scientific limitation
+
+Observability of a mathematical state model is not equivalent to biological identifiability.
+
+In particular, because L is latent and C does not directly observe it, load estimation depends on the assumed coupling structure and informative variation in inputs/observations.
+
+This is why PHYSIO-TWIN should report uncertainty and data sufficiency rather than presenting L as a directly measured physiological quantity.
+
+
+============================================================
+FILE: D:\Rahul\rahul_work\Univisory\Kids\Geetika\Arshpreet\Physio-twin\project\PHYSIO_TWIN\docs\M2.2_PARAMETER_RECOVERY.md
+============================================================
+# PHYSIO-TWIN M2.2 — Parameter Recovery Experiment
+
+## Objective
+
+M2.2 asks whether PHYSIO-TWIN parameters can be estimated from observations and inputs when the true hidden states and true parameters are withheld from the estimator.
+
+The first estimator is intentionally restricted to the 14-parameter population observed-core model defined in M2.1.
+
+## Estimator
+
+The implementation uses `statsmodels.tsa.statespace.MLEModel`.
+
+Statsmodels documents MLEModel as a state-space model for maximum-likelihood estimation. Its `fit()` method uses a numerical optimizer with the Kalman filter, while subclasses provide `start_params`, `update`, and parameter transformations where needed. citeturn0search2
+
+The PHYSIO-TWIN estimator therefore has this separation:
+
+- `synthetic.py`: creates ground truth
+- `estimator.py`: sees only observations + inputs
+- `experiment.py`: compares fitted parameters against withheld truth
+
+## Parameterization
+
+Free parameters:
+
+### A
+
+A00, A01, A10, A11
+
+### B
+
+B00, B01, B02
+B10, B11, B12
+
+### Q
+
+Q00, Q11
+
+### R
+
+R00, R11
+
+Total:
+
+14 parameters.
+
+Latent-load dynamics remain fixed during M2.2.
+
+## Constraints
+
+Noise variances are represented internally on the log scale and exponentiated during likelihood evaluation, guaranteeing positive diagonal variances.
+
+Candidate transition matrices with spectral radius >= 0.995 are assigned a very poor likelihood.
+
+The 0.995 threshold is an optimization safeguard for this experiment, not a biological constant.
+
+## Metrics
+
+### Parameter recovery
+
+Relative RMSE is reported separately for:
+
+- A observed core
+- B observed rows
+- Q observed diagonal
+- R diagonal
+
+### Predictive recovery
+
+One-step observation RMSE is also measured.
+
+This matters because parameter estimates can be imperfect while still producing useful predictions, or can look numerically plausible while forecasting poorly.
+
+### Stability
+
+The fitted spectral radius is reported.
+
+## History-length experiment
+
+M2.2 supports different longitudinal durations.
+
+The first tests use:
+
+- 60 days
+- 100 days
+- 180 days
+- 240 days
+
+The implementation does not assume that longer history automatically produces better estimates. That relationship must be measured.
+
+## Scientific limitation
+
+The synthetic generator and estimator use the same model family in this first parameter-recovery experiment.
+
+Therefore M2.2 establishes:
+
+- numerical estimability;
+- optimizer behavior;
+- parameter recovery under correct specification;
+- sensitivity to history length.
+
+It does not establish that the chosen model is correct for human physiology.
+
+M1.3 already begins addressing model mismatch; later M2 experiments should combine mismatch with parameter estimation.
+
+## Missing observations
+
+The underlying statsmodels Kalman machinery supports missing observations through its state-space filtering architecture. M2.2's first parameter-recovery gate uses complete observations so that parameter recovery can be isolated from missingness. Missing-data parameter recovery should be a separate experiment.
+
+## Decision gate
+
+Do not proceed to full 23-parameter estimation merely because optimization converges.
+
+Require:
+
+1. finite and stable fitted parameters;
+2. repeatability across seeds;
+3. acceptable parameter recovery;
+4. acceptable one-step predictive recovery;
+5. sensitivity analysis across history length.
+
+If parameter recovery is poor, investigate identifiability and scaling before adding model complexity.

@@ -1,0 +1,1973 @@
+
+
+============================================================
+FILE: .\model\schemas.py
+============================================================
+"""
+PHYSIO-TWIN
+-----------
+Data contracts for user profile and daily physiological/lifestyle records.
+
+This module defines the validated input layer of the PHYSIO-TWIN system.
+The mathematical model should never receive raw, unvalidated user input.
+"""
+
+from datetime import date as Date, time
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+# ---------------------------------------------------------------------------
+# ENUMERATIONS
+# ---------------------------------------------------------------------------
+
+class Sex(str, Enum):
+    MALE = "male"
+    FEMALE = "female"
+    OTHER = "other"
+    PREFER_NOT_TO_SAY = "prefer_not_to_say"
+
+
+class ActivityLevel(str, Enum):
+    LOW = "low"
+    MODERATE = "moderate"
+    HIGH = "high"
+
+
+class ExerciseType(str, Enum):
+    NONE = "none"
+    WALKING = "walking"
+    RUNNING = "running"
+    CYCLING = "cycling"
+    STRENGTH = "strength"
+    SPORTS = "sports"
+    YOGA = "yoga"
+    OTHER = "other"
+
+
+# ---------------------------------------------------------------------------
+# USER PROFILE
+# ---------------------------------------------------------------------------
+
+class UserProfile(BaseModel):
+    """
+    Persistent characteristics of a PHYSIO-TWIN user.
+
+    These values are not expected to change every day.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    age: int = Field(
+        ...,
+        ge=13,
+        le=100,
+        description="User age in years.",
+    )
+
+    sex: Sex = Field(
+        ...,
+        description="Self-reported sex category used as a modelling covariate where appropriate.",
+    )
+
+    height_cm: float = Field(
+        ...,
+        gt=50,
+        le=250,
+        description="Height in centimetres.",
+    )
+
+    weight_kg: float = Field(
+        ...,
+        gt=20,
+        le=300,
+        description="Body weight in kilograms.",
+    )
+
+    typical_sleep_hours: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=24,
+        description="Typical sleep duration in hours, if known.",
+    )
+
+    typical_activity_level: Optional[ActivityLevel] = Field(
+        default=None,
+        description="Typical overall activity level.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# SLEEP
+# ---------------------------------------------------------------------------
+
+class SleepRecord(BaseModel):
+    """Daily sleep-related observations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    duration_hours: float = Field(
+        ...,
+        ge=0,
+        le=24,
+        description="Total sleep duration in hours.",
+    )
+
+    quality: int = Field(
+        ...,
+        ge=1,
+        le=10,
+        description="Self-reported sleep quality from 1 to 10.",
+    )
+
+    bedtime: Optional[time] = Field(
+        default=None,
+        description="Approximate bedtime.",
+    )
+
+    wake_time: Optional[time] = Field(
+        default=None,
+        description="Approximate wake-up time.",
+    )
+
+    consistency: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description="Self-reported sleep schedule consistency from 1 to 10.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# DIET
+# ---------------------------------------------------------------------------
+
+class DietRecord(BaseModel):
+    """Daily coarse-grained dietary observations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    calories: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=10000,
+        description="Approximate daily energy intake in kcal.",
+    )
+
+    protein_grams: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=500,
+        description="Approximate daily protein intake in grams.",
+    )
+
+    fruit_vegetable_servings: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=30,
+        description="Approximate number of fruit and vegetable servings.",
+    )
+
+    water_liters: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=20,
+        description="Approximate daily water/fluid intake in litres.",
+    )
+
+    caffeine_mg: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=2000,
+        description="Approximate daily caffeine intake in milligrams.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# EXERCISE
+# ---------------------------------------------------------------------------
+
+class ExerciseRecord(BaseModel):
+    """Daily exercise observations."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    duration_minutes: float = Field(
+        ...,
+        ge=0,
+        le=1440,
+        description="Total exercise duration in minutes.",
+    )
+
+    intensity: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description="Self-reported exercise intensity from 1 to 10.",
+    )
+
+    sessions: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=20,
+        description="Number of exercise sessions during the day.",
+    )
+
+    exercise_type: ExerciseType = Field(
+        default=ExerciseType.NONE,
+        description="Primary exercise type for the day.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# GENERAL ACTIVITY
+# ---------------------------------------------------------------------------
+
+class ActivityRecord(BaseModel):
+    """General daily movement and sedentary behaviour."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    steps: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=100000,
+        description="Approximate number of steps.",
+    )
+
+    sedentary_hours: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=24,
+        description="Approximate sedentary time in hours.",
+    )
+
+    activity_level: Optional[ActivityLevel] = Field(
+        default=None,
+        description="Overall daily activity level.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# HABITS
+# ---------------------------------------------------------------------------
+
+class HabitRecord(BaseModel):
+    """Daily habit and routine exposure variables."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cigarettes: Optional[int] = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="Number of cigarettes smoked during the day.",
+    )
+
+    alcohol_drinks: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=30,
+        description="Approximate number of standard alcoholic drinks.",
+    )
+
+    screen_time_hours: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=24,
+        description="Approximate daily recreational/overall screen time.",
+    )
+
+    late_night_screen_hours: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=12,
+        description="Approximate screen exposure during the late-night period.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# SUBJECTIVE INDICES
+# ---------------------------------------------------------------------------
+
+class SubjectiveIndices(BaseModel):
+    """
+    Daily self-reported outcome/state indicators.
+
+    These are especially important because they provide observable targets
+    against which PHYSIO-TWIN's latent state estimates can be evaluated.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    stress: int = Field(
+        ...,
+        ge=1,
+        le=10,
+        description="Self-reported perceived stress from 1 to 10.",
+    )
+
+    fatigue: int = Field(
+        ...,
+        ge=1,
+        le=10,
+        description="Self-reported fatigue from 1 to 10.",
+    )
+
+    recovery: int = Field(
+        ...,
+        ge=1,
+        le=10,
+        description="Self-reported recovery from 1 to 10.",
+    )
+
+
+# ---------------------------------------------------------------------------
+# DAILY RECORD
+# ---------------------------------------------------------------------------
+
+class DailyRecord(BaseModel):
+    """
+    Complete daily PHYSIO-TWIN observation.
+
+    Required:
+        - date
+        - sleep
+        - exercise
+        - subjective indices
+
+    Optional:
+        - diet
+        - activity
+        - habits
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    date: Date = Field(
+        ...,
+        description="Calendar date represented by this record.",
+    )
+
+    sleep: SleepRecord
+    exercise: ExerciseRecord
+    subjective: SubjectiveIndices
+
+    diet: Optional[DietRecord] = None
+    activity: Optional[ActivityRecord] = None
+    habits: Optional[HabitRecord] = None
+
+    @field_validator("date")
+    @classmethod
+    def validate_date(cls, value: Date) -> Date:
+        """Reject future daily records."""
+        if value > Date.today():
+            raise ValueError("Daily record date cannot be in the future.")
+        return value
+
+
+============================================================
+FILE: .\model\preprocessing.py
+============================================================
+"""
+PHYSIO-TWIN
+-----------
+Preprocessing and feature derivation.
+
+This module converts validated DailyRecord objects into transparent,
+model-ready numerical features.
+
+Important:
+    The functions here perform deterministic transformations only.
+    They do not attempt to diagnose disease or calculate a clinical score.
+"""
+
+from typing import Any, Dict
+
+from model.schemas import DailyRecord
+
+
+def calculate_sleep_deficit(
+    sleep_duration_hours: float,
+    reference_sleep_hours: float,
+) -> float:
+    """
+    Calculate sleep deficit relative to a reference duration.
+
+    Formula:
+        deficit = max(0, reference - observed)
+
+    Parameters
+    ----------
+    sleep_duration_hours:
+        Observed sleep duration.
+
+    reference_sleep_hours:
+        Reference/target sleep duration.
+
+    Returns
+    -------
+    float
+        Sleep deficit in hours.
+    """
+
+    if reference_sleep_hours < 0:
+        raise ValueError("Reference sleep duration cannot be negative.")
+
+    return max(
+        0.0,
+        reference_sleep_hours - sleep_duration_hours,
+    )
+
+
+def calculate_exercise_load(
+    duration_minutes: float,
+    intensity: int | None,
+) -> float:
+    """
+    Calculate a simple exercise-load proxy.
+
+    Formula:
+        exercise_load = duration_minutes * intensity / 10
+
+    If intensity is unavailable, the function returns 0.0.
+
+    This is a modelling feature, not a clinical physiological measurement.
+    """
+
+    if duration_minutes < 0:
+        raise ValueError("Exercise duration cannot be negative.")
+
+    if intensity is None:
+        return 0.0
+
+    return duration_minutes * intensity / 10.0
+
+
+def normalize_scale_1_to_10(value: int) -> float:
+    """
+    Normalize a 1-10 subjective score to approximately 0.1-1.0.
+    """
+
+    if not 1 <= value <= 10:
+        raise ValueError("Value must be between 1 and 10.")
+
+    return value / 10.0
+
+
+def build_model_features(
+    record: DailyRecord,
+    reference_sleep_hours: float,
+) -> Dict[str, Any]:
+    """
+    Convert a validated DailyRecord into model-ready features.
+
+    The output contains:
+        - sleep deficit
+        - exercise load
+        - normalized stress
+        - normalized observed fatigue
+        - normalized observed recovery
+
+    Optional observations are retained where available.
+    """
+
+    subjective = record.subjective
+
+    features: Dict[str, Any] = {
+        "date": record.date,
+
+        # Raw observations
+        "sleep_duration_hours": record.sleep.duration_hours,
+        "sleep_quality": record.sleep.quality,
+
+        "exercise_duration_minutes": (
+            record.exercise.duration_minutes
+        ),
+        "exercise_intensity": (
+            record.exercise.intensity
+        ),
+
+        # Derived features
+        "sleep_deficit_hours": calculate_sleep_deficit(
+            sleep_duration_hours=record.sleep.duration_hours,
+            reference_sleep_hours=reference_sleep_hours,
+        ),
+
+        "exercise_load": calculate_exercise_load(
+            duration_minutes=record.exercise.duration_minutes,
+            intensity=record.exercise.intensity,
+        ),
+
+        "stress_normalized": normalize_scale_1_to_10(
+            subjective.stress
+        ),
+
+        # Observed targets
+        "fatigue_observed_normalized": normalize_scale_1_to_10(
+            subjective.fatigue
+        ),
+
+        "recovery_observed_normalized": normalize_scale_1_to_10(
+            subjective.recovery
+        ),
+    }
+
+    # Optional activity information
+    if record.activity is not None:
+        features["steps"] = record.activity.steps
+        features["sedentary_hours"] = record.activity.sedentary_hours
+
+    # Optional diet information
+    if record.diet is not None:
+        features["calories"] = record.diet.calories
+        features["protein_grams"] = record.diet.protein_grams
+        features["water_liters"] = record.diet.water_liters
+        features["caffeine_mg"] = record.diet.caffeine_mg
+
+    # Optional habit information
+    if record.habits is not None:
+        features["cigarettes"] = record.habits.cigarettes
+        features["alcohol_drinks"] = record.habits.alcohol_drinks
+        features["screen_time_hours"] = (
+            record.habits.screen_time_hours
+        )
+
+    return features
+
+
+============================================================
+FILE: .\model\baseline.py
+============================================================
+"""
+PHYSIO-TWIN
+-----------
+Personal baseline estimation.
+
+This module estimates an individual's normal historical pattern
+from longitudinal observations.
+
+It does not make a medical assessment.
+"""
+
+from dataclasses import dataclass
+from typing import Iterable
+
+import numpy as np
+
+
+EPSILON = 1e-8
+
+
+@dataclass(frozen=True)
+class BaselineStatistics:
+    """
+    Descriptive statistics for one longitudinal variable.
+    """
+
+    count: int
+    mean: float
+    standard_deviation: float
+    median: float
+    minimum: float
+    maximum: float
+
+
+def calculate_baseline(
+    values: Iterable[float],
+) -> BaselineStatistics:
+    """
+    Calculate descriptive statistics for a numeric history.
+
+    Parameters
+    ----------
+    values:
+        Historical observations for one variable.
+
+    Returns
+    -------
+    BaselineStatistics
+        Mean, standard deviation, median, minimum and maximum.
+
+    Raises
+    ------
+    ValueError
+        If no observations are provided.
+    """
+
+    values_array = np.asarray(
+        list(values),
+        dtype=float,
+    )
+
+    if values_array.size == 0:
+        raise ValueError(
+            "At least one observation is required."
+        )
+
+    if not np.all(np.isfinite(values_array)):
+        raise ValueError(
+            "Baseline values must contain only finite numbers."
+        )
+
+    return BaselineStatistics(
+        count=int(values_array.size),
+        mean=float(np.mean(values_array)),
+        standard_deviation=float(
+            np.std(values_array, ddof=1)
+            if values_array.size > 1
+            else 0.0
+        ),
+        median=float(np.median(values_array)),
+        minimum=float(np.min(values_array)),
+        maximum=float(np.max(values_array)),
+    )
+
+
+def calculate_z_score(
+    value: float,
+    baseline: BaselineStatistics,
+) -> float:
+    """
+    Calculate deviation of a value from a personal baseline.
+
+    Formula:
+
+        z = (x - mean) / (std + epsilon)
+
+    If the baseline contains only one observation, or has zero
+    variance, the result is defined as 0.0.
+
+    This avoids producing an artificial infinite deviation when
+    there is insufficient baseline variability information.
+    """
+
+    if not np.isfinite(value):
+        raise ValueError(
+            "Value must be finite."
+        )
+
+    if baseline.count < 2:
+        return 0.0
+
+    if baseline.standard_deviation < EPSILON:
+        return 0.0
+
+    return (
+        (value - baseline.mean)
+        / (
+            baseline.standard_deviation
+            + EPSILON
+        )
+    )
+
+
+============================================================
+FILE: .\model\state_space.py
+============================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+
+STATE_DIM = 3
+INPUT_DIM = 3
+OBS_DIM = 2
+EPSILON = 1e-10
+
+
+@dataclass(frozen=True)
+class StateSpaceConfig:
+    """Validated linear state-space configuration for PHYSIO-TWIN."""
+
+    A: np.ndarray
+    B: np.ndarray
+    C: np.ndarray
+    Q: np.ndarray
+    R: np.ndarray
+    initial_state: np.ndarray
+    initial_covariance: np.ndarray
+
+    def __post_init__(self) -> None:
+        matrices = {
+            "A": (self.A, (STATE_DIM, STATE_DIM)),
+            "B": (self.B, (STATE_DIM, INPUT_DIM)),
+            "C": (self.C, (OBS_DIM, STATE_DIM)),
+            "Q": (self.Q, (STATE_DIM, STATE_DIM)),
+            "R": (self.R, (OBS_DIM, OBS_DIM)),
+            "initial_state": (self.initial_state, (STATE_DIM,)),
+            "initial_covariance": (
+                self.initial_covariance,
+                (STATE_DIM, STATE_DIM),
+            ),
+        }
+
+        for name, (value, shape) in matrices.items():
+            array = np.asarray(value, dtype=float)
+            if array.shape != shape:
+                raise ValueError(
+                    f"{name} must have shape {shape}, got {array.shape}"
+                )
+            if not np.all(np.isfinite(array)):
+                raise ValueError(f"{name} must contain only finite values")
+
+        if not is_positive_semidefinite(self.Q):
+            raise ValueError("Q must be positive semidefinite")
+        if not is_positive_definite(self.R):
+            raise ValueError("R must be positive definite")
+        if not is_positive_semidefinite(self.initial_covariance):
+            raise ValueError("initial_covariance must be positive semidefinite")
+
+    @property
+    def spectral_radius(self) -> float:
+        return spectral_radius(self.A)
+
+    def assert_stable(self, tolerance: float = EPSILON) -> None:
+        if self.spectral_radius >= 1.0 - tolerance:
+            raise ValueError(
+                "Transition matrix A is not strictly stable: "
+                f"spectral radius={self.spectral_radius:.6g}"
+            )
+
+
+def _symmetric(matrix: np.ndarray) -> np.ndarray:
+    return (matrix + matrix.T) / 2.0
+
+
+def is_positive_semidefinite(matrix: np.ndarray, tolerance: float = 1e-9) -> bool:
+    matrix = np.asarray(matrix, dtype=float)
+    if not np.allclose(matrix, matrix.T, atol=tolerance):
+        return False
+    eigenvalues = np.linalg.eigvalsh(_symmetric(matrix))
+    return bool(np.min(eigenvalues) >= -tolerance)
+
+
+def is_positive_definite(matrix: np.ndarray, tolerance: float = 1e-9) -> bool:
+    matrix = np.asarray(matrix, dtype=float)
+    if not np.allclose(matrix, matrix.T, atol=tolerance):
+        return False
+    eigenvalues = np.linalg.eigvalsh(_symmetric(matrix))
+    return bool(np.min(eigenvalues) > tolerance)
+
+
+def spectral_radius(A: np.ndarray) -> float:
+    eigenvalues = np.linalg.eigvals(np.asarray(A, dtype=float))
+    return float(np.max(np.abs(eigenvalues)))
+
+
+def predict_state(
+    state: np.ndarray,
+    covariance: np.ndarray,
+    inputs: np.ndarray,
+    config: StateSpaceConfig,
+) -> tuple[np.ndarray, np.ndarray]:
+    """One state prediction step: X' = A X + B U + w."""
+    state = np.asarray(state, dtype=float)
+    covariance = np.asarray(covariance, dtype=float)
+    inputs = np.asarray(inputs, dtype=float)
+
+    if state.shape != (STATE_DIM,):
+        raise ValueError("state must have shape (3,)")
+    if covariance.shape != (STATE_DIM, STATE_DIM):
+        raise ValueError("covariance must have shape (3, 3)")
+    if inputs.shape != (INPUT_DIM,):
+        raise ValueError("inputs must have shape (3,)")
+
+    predicted_state = config.A @ state + config.B @ inputs
+    predicted_covariance = _symmetric(
+        config.A @ covariance @ config.A.T + config.Q
+    )
+    return predicted_state, predicted_covariance
+
+
+def update_state(
+    predicted_state: np.ndarray,
+    predicted_covariance: np.ndarray,
+    observation: np.ndarray,
+    config: StateSpaceConfig,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Measurement update, supporting partially missing observations.
+
+    Missing observations are represented by NaN. Only observed components
+    participate in the update; if all components are missing, this is a
+    prediction-only step.
+    """
+    predicted_state = np.asarray(predicted_state, dtype=float)
+    predicted_covariance = np.asarray(predicted_covariance, dtype=float)
+    observation = np.asarray(observation, dtype=float)
+
+    if predicted_state.shape != (STATE_DIM,):
+        raise ValueError("predicted_state must have shape (3,)")
+    if predicted_covariance.shape != (STATE_DIM, STATE_DIM):
+        raise ValueError("predicted_covariance must have shape (3, 3)")
+    if observation.shape != (OBS_DIM,):
+        raise ValueError("observation must have shape (2,)")
+
+    observed = np.isfinite(observation)
+    if not np.any(observed):
+        return predicted_state, _symmetric(predicted_covariance), np.zeros(
+            (STATE_DIM, OBS_DIM)
+        )
+
+    C = config.C[observed, :]
+    R = config.R[np.ix_(observed, observed)]
+    y = observation[observed]
+
+    innovation = y - C @ predicted_state
+    innovation_covariance = _symmetric(
+        C @ predicted_covariance @ C.T + R
+    )
+
+    # Solve S K^T = C P instead of explicitly calculating S^{-1}.
+    cross_covariance = predicted_covariance @ C.T
+    kalman_gain_reduced = np.linalg.solve(
+        innovation_covariance, cross_covariance.T
+    ).T
+
+    updated_state = predicted_state + kalman_gain_reduced @ innovation
+
+    identity = np.eye(STATE_DIM)
+    joseph_covariance = (
+        (identity - kalman_gain_reduced @ C)
+        @ predicted_covariance
+        @ (identity - kalman_gain_reduced @ C).T
+        + kalman_gain_reduced @ R @ kalman_gain_reduced.T
+    )
+    updated_covariance = _symmetric(joseph_covariance)
+
+    full_gain = np.zeros((STATE_DIM, OBS_DIM))
+    full_gain[:, observed] = kalman_gain_reduced
+    return updated_state, updated_covariance, full_gain
+
+
+def filter_step(
+    state: np.ndarray,
+    covariance: np.ndarray,
+    inputs: np.ndarray,
+    observation: np.ndarray,
+    config: StateSpaceConfig,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Run one prediction + measurement update step."""
+    predicted_state, predicted_covariance = predict_state(
+        state, covariance, inputs, config
+    )
+    updated_state, updated_covariance, gain = update_state(
+        predicted_state, predicted_covariance, observation, config
+    )
+    return updated_state, updated_covariance, predicted_state, gain
+
+
+def forecast(
+    state: np.ndarray,
+    covariance: np.ndarray,
+    future_inputs: np.ndarray,
+    config: StateSpaceConfig,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Forecast states for a sequence of future input vectors."""
+    future_inputs = np.asarray(future_inputs, dtype=float)
+    if future_inputs.ndim != 2 or future_inputs.shape[1] != INPUT_DIM:
+        raise ValueError("future_inputs must have shape (horizon, 3)")
+    if not np.all(np.isfinite(future_inputs)):
+        raise ValueError("future_inputs must contain only finite values")
+
+    current_state = np.asarray(state, dtype=float)
+    current_covariance = np.asarray(covariance, dtype=float)
+    states = []
+    covariances = []
+
+    for inputs in future_inputs:
+        current_state, current_covariance = predict_state(
+            current_state, current_covariance, inputs, config
+        )
+        states.append(current_state.copy())
+        covariances.append(current_covariance.copy())
+
+    if not states:
+        return np.empty((0, STATE_DIM)), np.empty((0, STATE_DIM, STATE_DIM))
+
+    return np.stack(states), np.stack(covariances)
+
+
+============================================================
+FILE: .\model\synthetic.py
+============================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from .state_space import STATE_DIM, INPUT_DIM, OBS_DIM, StateSpaceConfig
+
+
+@dataclass(frozen=True)
+class SyntheticDataset:
+    """Ground-truth longitudinal sequence plus noisy observations."""
+
+    true_states: np.ndarray
+    inputs: np.ndarray
+    observations: np.ndarray
+    missing_observation_mask: np.ndarray
+
+
+def simulate_true_states(
+    config: StateSpaceConfig,
+    inputs: np.ndarray,
+    rng: np.random.Generator,
+    initial_state: np.ndarray | None = None,
+) -> np.ndarray:
+    """Generate hidden states using the canonical state-space timing.
+
+    The sequence follows:
+
+        X_0 = initial_state
+        X_t = A X_{t-1} + B U_{t-1} + w_{t-1}
+
+    Therefore inputs[t] affect state[t+1], not state[t].
+    This matches the observation convention:
+
+        Y_t = C X_t + v_t
+    """
+    inputs = np.asarray(inputs, dtype=float)
+
+    if inputs.ndim != 2 or inputs.shape[1] != INPUT_DIM:
+        raise ValueError("inputs must have shape (days, 3)")
+
+    if not np.all(np.isfinite(inputs)):
+        raise ValueError("inputs must contain only finite values")
+
+    state = (
+        np.asarray(initial_state, dtype=float).copy()
+        if initial_state is not None
+        else config.initial_state.copy()
+    )
+
+    if state.shape != (STATE_DIM,):
+        raise ValueError("initial_state must have shape (3,)")
+
+    states = np.empty((len(inputs), STATE_DIM), dtype=float)
+
+    # First observation corresponds to the known initial state.
+    states[0] = state
+
+    # U[t-1] drives the transition from X[t-1] to X[t].
+    for day in range(1, len(inputs)):
+        process_noise = rng.multivariate_normal(
+            mean=np.zeros(STATE_DIM),
+            cov=config.Q,
+        )
+
+        state = (
+            config.A @ state
+            + config.B @ inputs[day - 1]
+            + process_noise
+        )
+
+        states[day] = state
+
+    return states
+
+
+def simulate_observations(
+    config: StateSpaceConfig,
+    true_states: np.ndarray,
+    rng: np.random.Generator,
+    missing_probability: float = 0.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Generate noisy fatigue/recovery observations.
+
+    The load state is not directly observed. Missingness is MCAR in this
+    controlled experiment and is represented by NaN.
+    """
+    true_states = np.asarray(true_states, dtype=float)
+    if true_states.ndim != 2 or true_states.shape[1] != STATE_DIM:
+        raise ValueError("true_states must have shape (days, 3)")
+    if not 0.0 <= missing_probability < 1.0:
+        raise ValueError("missing_probability must be in [0, 1)")
+
+    observations = true_states @ config.C.T
+    measurement_noise = rng.multivariate_normal(
+        mean=np.zeros(OBS_DIM),
+        cov=config.R,
+        size=len(true_states),
+    )
+    observations = observations + measurement_noise
+
+    missing_mask = rng.random(observations.shape) < missing_probability
+    observations[missing_mask] = np.nan
+
+    return observations, missing_mask
+
+
+def make_synthetic_dataset(
+    config: StateSpaceConfig,
+    days: int = 120,
+    seed: int = 42,
+    missing_probability: float = 0.0,
+) -> SyntheticDataset:
+    """Create a reproducible controlled longitudinal experiment.
+
+    Inputs are generated from bounded, interpretable routine variables:
+    sleep deficit, exercise load, and normalized stress.
+    """
+    if days < 2:
+        raise ValueError("days must be at least 2")
+
+    rng = np.random.default_rng(seed)
+
+    sleep_deficit = np.clip(
+        rng.normal(loc=0.8, scale=0.45, size=days),
+        0.0,
+        2.5,
+    )
+    exercise_load = np.clip(
+        rng.gamma(shape=2.0, scale=0.8, size=days),
+        0.0,
+        6.0,
+    )
+    stress = np.clip(
+        rng.normal(loc=0.45, scale=0.18, size=days),
+        0.0,
+        1.0,
+    )
+    inputs = np.column_stack([sleep_deficit, exercise_load, stress])
+
+    true_states = simulate_true_states(config, inputs, rng)
+    observations, missing_mask = simulate_observations(
+        config,
+        true_states,
+        rng,
+        missing_probability=missing_probability,
+    )
+
+    return SyntheticDataset(
+        true_states=true_states,
+        inputs=inputs,
+        observations=observations,
+        missing_observation_mask=missing_mask,
+    )
+
+
+============================================================
+FILE: .\model\estimator.py
+============================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+from statsmodels.tsa.statespace.mlemodel import MLEModel
+
+from .state_space import OBS_DIM, STATE_DIM, StateSpaceConfig
+
+
+@dataclass(frozen=True)
+class ParameterRecoveryResult:
+    """Fitted matrices and optimization diagnostics."""
+
+    A: np.ndarray
+    B: np.ndarray
+    Q: np.ndarray
+    R: np.ndarray
+    param_names: tuple[str, ...]
+    unconstrained_params: np.ndarray
+    constrained_params: np.ndarray
+    converged: bool
+    llf: float
+    optimizer_message: str
+    optimizer_iterations: int | None
+    optimizer_function_calls: int | None
+
+def _log_positive(x: float) -> float:
+    return float(np.log(max(x, 1e-12)))
+
+
+class PopulationCoreMLE(MLEModel):
+    """14-parameter observable-core PHYSIO-TWIN model.
+
+    Free parameters:
+      - A00, A01, A10, A11
+      - B00..B12 for fatigue/recovery rows
+      - Q00, Q11
+      - R00, R11
+
+    The latent-load row of A/B and Q22 remain fixed at the supplied
+    population/test configuration for this first recovery experiment.
+
+    A stability-oriented parameter transform is used for the observable
+    A block, with an additional likelihood-level stability safeguard.
+    Variances are transformed to remain strictly positive.
+    """
+
+    def __init__(
+        self,
+        observations: np.ndarray,
+        inputs: np.ndarray,
+        fixed_config: StateSpaceConfig,
+    ):
+        observations = np.asarray(observations, dtype=float)
+        inputs = np.asarray(inputs, dtype=float)
+
+        if observations.ndim != 2 or observations.shape[1] != OBS_DIM:
+            raise ValueError("observations must have shape (n, 2)")
+        if inputs.ndim != 2 or inputs.shape[1] != 3:
+            raise ValueError("inputs must have shape (n, 3)")
+        if len(observations) != len(inputs):
+            raise ValueError("observations and inputs must have equal length")
+
+        self.inputs = inputs
+        self.fixed_config = fixed_config
+
+        # Time-varying deterministic input contribution is represented through
+        # a time-varying design of the transition update in update().
+        super().__init__(
+            observations,
+            k_states=STATE_DIM,
+            initialization="approximate_diffuse",
+        )
+
+        self.ssm.initialize_known(
+            fixed_config.initial_state,
+            fixed_config.initial_covariance,
+        )
+
+        self["design"] = fixed_config.C
+        self["transition"] = fixed_config.A
+        self["selection"] = np.eye(STATE_DIM)
+        self["state_cov"] = fixed_config.Q
+        self["obs_cov"] = fixed_config.R
+
+        self._param_names = (
+            "A_00", "A_01", "A_10", "A_11",
+            "B_00", "B_01", "B_02",
+            "B_10", "B_11", "B_12",
+            "log_Q_00", "log_Q_11",
+            "log_R_00", "log_R_11",
+        )
+
+    @property
+    def start_params(self) -> np.ndarray:
+        A = self.fixed_config.A
+        B = self.fixed_config.B
+        Q = self.fixed_config.Q
+        R = self.fixed_config.R
+
+        # Statsmodels expects start_params in the constrained parameter
+        # space by default. It will call untransform_params() internally
+        # before optimization.
+        return np.array([
+            A[0, 0], A[0, 1], A[1, 0], A[1, 1],
+            B[0, 0], B[0, 1], B[0, 2],
+            B[1, 0], B[1, 1], B[1, 2],
+            Q[0, 0], Q[1, 1],
+            R[0, 0], R[1, 1],
+        ])
+    
+    @property
+    def param_names(self):
+        return list(self._param_names)
+
+    def transform_params(self, unconstrained):
+        params = np.asarray(unconstrained).copy()
+        # Constrain the observable A block to a safe numerical range.
+        # This is an optimization constraint, not a physiological claim.
+        params[:4] = 0.9 * np.tanh(params[:4])
+        # Variances must remain strictly positive.
+        params[10:] = np.exp(params[10:]) + 1e-6
+        return params
+
+    def untransform_params(self, constrained):
+        params = np.asarray(constrained).copy()
+        # Inverse of 0.9 * tanh(x)
+        scaled = np.clip(params[:4] / 0.9, -0.999999, 0.999999)
+        params[:4] = np.arctanh(scaled)
+        params[10:] = np.log(np.maximum(params[10:] - 1e-6, 1e-12))
+        return params
+
+    def _matrices(self, constrained):
+        p = np.asarray(constrained)
+        dtype = np.result_type(constrained, float)
+        A = self.fixed_config.A.astype(dtype, copy=True)
+        B = self.fixed_config.B.astype(dtype, copy=True)
+        Q = self.fixed_config.Q.astype(dtype, copy=True)
+        R = self.fixed_config.R.astype(dtype, copy=True)
+
+
+        A[0, 0], A[0, 1], A[1, 0], A[1, 1] = p[:4]
+        B[0, :] = p[4:7]
+        B[1, :] = p[7:10]
+        Q[0, 0], Q[1, 1] = p[10:12]
+        R[0, 0], R[1, 1] = p[12:14]
+
+        return A, B, Q, R
+
+    def update(self, params, transformed=True, **kwargs):
+        params = super().update(
+            params,
+            transformed=transformed,
+            **kwargs,
+        )
+        constrained = (
+            np.asarray(params)
+            if transformed
+            else self.transform_params(params)
+        )
+        A, B, Q, R = self._matrices(constrained)
+
+        self["transition"] = A
+        self["state_cov"] = Q
+        self["obs_cov"] = R
+
+        # The statsmodels state-space representation supports time-varying
+        # state intercepts. Each day gets B U_t.
+        intercept = np.asarray(
+            B @ self.inputs.T,
+            dtype=np.result_type(B, float),
+        )      
+        self["state_intercept"] = intercept
+
+        self._candidate_stable = np.max(np.abs(np.linalg.eigvals(A))) < 0.995
+        self._candidate_positive = (
+            np.all(np.linalg.eigvalsh(Q) >= -1e-10)
+            and np.all(np.linalg.eigvalsh(R) > 0)
+        )
+
+    def loglike(self, params, *args, **kwargs):
+        # Statsmodels passes transformed=False during optimization.
+        # Direct calls default to transformed=True unless explicitly specified.
+        transformed = kwargs.pop("transformed", None)
+
+        if transformed is None and args:
+            first = args[0]
+            if isinstance(first, dict):
+                transformed = first.get("transformed", True)
+            else:
+                transformed = True
+
+        if transformed is None:
+            transformed = True
+
+        if transformed:
+            constrained = np.asarray(params)
+        else:
+            constrained = self.transform_params(params)
+
+        self.update(
+            constrained,
+            transformed=True,
+        )
+
+        if not getattr(self, "_candidate_stable", False):
+            return -1e12
+
+        if not getattr(self, "_candidate_positive", False):
+            return -1e12
+
+        return super().loglike(
+            constrained,
+            transformed=True,
+        )
+
+    def fit_model(
+        self,
+        maxiter: int = 150,
+        method: str = "lbfgs",
+        disp: bool = False,
+    ):
+        return self.fit(
+            start_params=self.start_params,
+            method=method,
+            maxiter=maxiter,
+            disp=disp,
+        )
+
+
+def fit_population_core(
+    observations: np.ndarray,
+    inputs: np.ndarray,
+    initial_config: StateSpaceConfig,
+    maxiter: int = 150,
+) -> ParameterRecoveryResult:
+    model = PopulationCoreMLE(
+        observations,
+        inputs,
+        fixed_config=initial_config,
+    )
+
+    result = model.fit_model(maxiter=maxiter)
+
+    # Statsmodels returns the optimizer's parameter vector.
+    # Convert it explicitly into the constrained parameter space before
+    # constructing A/B/Q/R.
+    unconstrained = np.asarray(result.params)
+
+    constrained = np.asarray(
+        model.transform_params(unconstrained)
+    )
+
+    A, B, Q, R = model._matrices(constrained)
+
+    return ParameterRecoveryResult(
+        A=A,
+        B=B,
+        Q=Q,
+        R=R,
+        param_names=tuple(model.param_names),
+        unconstrained_params=np.asarray(
+            unconstrained,
+            dtype=float,
+        ),
+        constrained_params=np.asarray(
+            constrained,
+            dtype=float,
+        ),
+        converged=bool(
+            result.mle_retvals.get("converged", False)
+        ),
+        llf=float(result.llf),
+        optimizer_message=str(
+            result.mle_retvals.get("message", "")
+        ),
+        optimizer_iterations=result.mle_retvals.get("iterations"),
+        optimizer_function_calls=result.mle_retvals.get("fcalls"),
+    )
+
+
+============================================================
+FILE: .\model\parameter_recovery.py
+============================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from .estimator import fit_population_core
+from .synthetic import make_synthetic_dataset
+from .state_space import StateSpaceConfig, spectral_radius
+
+
+@dataclass(frozen=True)
+class RecoveryMetrics:
+    days: int
+    seed: int
+    converged: bool
+    A_rmse: float
+    B_rmse: float
+    Q_rmse: float
+    R_rmse: float
+    one_step_observation_rmse: float
+    spectral_radius: float
+    log_likelihood: float
+
+
+def _relative_rmse(estimated: np.ndarray, true: np.ndarray) -> float:
+    denom = np.sqrt(np.mean(np.asarray(true, dtype=float) ** 2)) + 1e-12
+    return float(np.sqrt(np.mean((estimated - true) ** 2)) / denom)
+
+
+def _observation_rmse(
+    config: StateSpaceConfig,
+    fitted_A: np.ndarray,
+    fitted_B: np.ndarray,
+    fitted_Q: np.ndarray,
+    fitted_R: np.ndarray,
+    dataset,
+) -> float:
+    fitted_config = StateSpaceConfig(
+        A=fitted_A,
+        B=fitted_B,
+        C=config.C,
+        Q=fitted_Q,
+        R=fitted_R,
+        initial_state=config.initial_state,
+        initial_covariance=config.initial_covariance,
+    )
+
+    state = fitted_config.initial_state.copy()
+    errors = []
+
+    for u, y in zip(dataset.inputs, dataset.observations):
+        predicted = fitted_config.A @ state + fitted_config.B @ u
+        predicted_y = fitted_config.C @ predicted
+
+        if np.all(np.isfinite(y)):
+            errors.append(y - predicted_y)
+
+        state = predicted
+
+    if not errors:
+        return float("nan")
+
+    return float(np.sqrt(np.mean(np.asarray(errors) ** 2)))
+
+
+def run_parameter_recovery(
+    config: StateSpaceConfig,
+    days: int = 240,
+    seed: int = 42,
+    maxiter: int = 150,
+) -> RecoveryMetrics:
+    dataset = make_synthetic_dataset(config, days=days, seed=seed)
+
+    # The estimator is intentionally given observations + inputs only.
+    result = fit_population_core(
+        dataset.observations,
+        dataset.inputs,
+        initial_config=config,
+        maxiter=maxiter,
+    )
+
+    return RecoveryMetrics(
+        days=days,
+        seed=seed,
+        converged=result.converged,
+        A_rmse=_relative_rmse(result.A[:2, :2], config.A[:2, :2]),
+        B_rmse=_relative_rmse(result.B[:2], config.B[:2]),
+        Q_rmse=_relative_rmse(
+            np.diag(result.Q)[:2],
+            np.diag(config.Q)[:2],
+        ),
+        R_rmse=_relative_rmse(
+            np.diag(result.R),
+            np.diag(config.R),
+        ),
+        one_step_observation_rmse=_observation_rmse(
+            config,
+            result.A,
+            result.B,
+            result.Q,
+            result.R,
+            dataset,
+        ),
+        spectral_radius=spectral_radius(result.A),
+        log_likelihood=result.llf,
+    )
+
+
+============================================================
+FILE: .\model\experiment.py
+============================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from .state_space import StateSpaceConfig, filter_step, forecast
+from .synthetic import SyntheticDataset
+
+
+@dataclass(frozen=True)
+class FilteredDataset:
+    states: np.ndarray
+    covariances: np.ndarray
+    predicted_states: np.ndarray
+    gains: np.ndarray
+
+
+def run_filter(
+    config: StateSpaceConfig,
+    dataset: SyntheticDataset,
+) -> FilteredDataset:
+    """Run the PHYSIO-TWIN filter over a synthetic longitudinal sequence."""
+    state = config.initial_state.copy()
+    covariance = config.initial_covariance.copy()
+
+    states = []
+    covariances = []
+    predicted_states = []
+    gains = []
+
+    for inputs, observation in zip(dataset.inputs, dataset.observations):
+        state, covariance, predicted, gain = filter_step(
+            state,
+            covariance,
+            inputs,
+            observation,
+            config,
+        )
+        states.append(state.copy())
+        covariances.append(covariance.copy())
+        predicted_states.append(predicted.copy())
+        gains.append(gain.copy())
+
+    return FilteredDataset(
+        states=np.stack(states),
+        covariances=np.stack(covariances),
+        predicted_states=np.stack(predicted_states),
+        gains=np.stack(gains),
+    )
+
+
+def rmse_by_state(true_states: np.ndarray, estimated_states: np.ndarray) -> np.ndarray:
+    """Return RMSE independently for fatigue, recovery, and load."""
+    true_states = np.asarray(true_states, dtype=float)
+    estimated_states = np.asarray(estimated_states, dtype=float)
+    if true_states.shape != estimated_states.shape:
+        raise ValueError("true_states and estimated_states must have equal shape")
+    return np.sqrt(np.mean((true_states - estimated_states) ** 2, axis=0))
+
+
+def mae_by_state(true_states: np.ndarray, estimated_states: np.ndarray) -> np.ndarray:
+    """Return MAE independently for fatigue, recovery, and load."""
+    true_states = np.asarray(true_states, dtype=float)
+    estimated_states = np.asarray(estimated_states, dtype=float)
+    if true_states.shape != estimated_states.shape:
+        raise ValueError("true_states and estimated_states must have equal shape")
+    return np.mean(np.abs(true_states - estimated_states), axis=0)
+
+
+def forecast_rmse(
+    config: StateSpaceConfig,
+    filtered: FilteredDataset,
+    dataset: SyntheticDataset,
+    start_index: int,
+    horizon: int,
+) -> np.ndarray:
+    """Forecast future hidden states from a filtered state and measure RMSE.
+
+    Future inputs are assumed known in this controlled experiment.
+    """
+    if start_index < 0 or start_index >= len(dataset.true_states):
+        raise ValueError("start_index out of range")
+    if horizon < 1 or start_index + horizon > len(dataset.true_states):
+        raise ValueError("horizon exceeds available future data")
+
+    predicted, _ = forecast(
+        filtered.states[start_index],
+        filtered.covariances[start_index],
+        dataset.inputs[start_index + 1 : start_index + horizon + 1],
+        config,
+    )
+    truth = dataset.true_states[start_index + 1 : start_index + horizon + 1]
+    return rmse_by_state(truth, predicted)
+
+
+============================================================
+FILE: .\model\mismatch.py
+============================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from .state_space import INPUT_DIM, OBS_DIM, STATE_DIM, StateSpaceConfig
+
+
+@dataclass(frozen=True)
+class MismatchDataset:
+    true_states: np.ndarray
+    inputs: np.ndarray
+    observations: np.ndarray
+    scenario: str
+
+
+def _base_inputs(days: int, rng: np.random.Generator) -> np.ndarray:
+    sleep_deficit = np.clip(rng.normal(0.8, 0.45, days), 0.0, 2.5)
+    exercise_load = np.clip(rng.gamma(2.0, 0.8, days), 0.0, 6.0)
+    stress = np.clip(rng.normal(0.45, 0.18, days), 0.0, 1.0)
+    return np.column_stack([sleep_deficit, exercise_load, stress])
+
+
+def _draw_noise(
+    covariance: np.ndarray,
+    rng: np.random.Generator,
+    size: int = 1,
+) -> np.ndarray:
+    return rng.multivariate_normal(np.zeros(len(covariance)), covariance, size=size)
+
+
+def simulate_mismatched_process(
+    config: StateSpaceConfig,
+    days: int,
+    seed: int,
+    scenario: str,
+) -> MismatchDataset:
+    """Generate data from a process that intentionally differs from PHYSIO-TWIN.
+
+    Scenarios:
+    - nonlinear_saturation: exercise response saturates and stress interacts
+      with exercise.
+    - delayed_sleep: sleep deficit affects the state with a one-day delay.
+    - correlated_noise: measurement errors are correlated rather than diagonal.
+    - person_shift: the true person has different transition/input parameters.
+    """
+    if days < 10:
+        raise ValueError("days must be at least 10")
+
+    rng = np.random.default_rng(seed)
+    inputs = _base_inputs(days, rng)
+
+    A = config.A.copy()
+    B = config.B.copy()
+    Q = config.Q.copy()
+
+    state = config.initial_state.copy()
+    states = np.empty((days, STATE_DIM), dtype=float)
+
+    measurement_cov = config.R.copy()
+
+    if scenario == "correlated_noise":
+        measurement_cov = np.array([
+            [0.04, 0.025],
+            [0.025, 0.04],
+        ])
+
+    if scenario == "person_shift":
+        A = A.copy()
+        B = B.copy()
+        A[0, 0] = 0.82
+        A[1, 1] = 0.68
+        A[2, 2] = 0.68
+        B[0, 0] = 0.14
+        B[1, 1] = -0.045
+        B[2, 1] = 0.16
+
+    for day, u in enumerate(inputs):
+        d, e, s = u
+
+        if scenario == "nonlinear_saturation":
+            effective_e = 2.0 * (1.0 - np.exp(-e / 2.0))
+            effective_u = np.array([d, effective_e, s])
+            interaction = np.array([
+                0.06 * s * effective_e,
+                -0.03 * d * s,
+                0.04 * np.tanh(e - 1.0),
+            ])
+            state = A @ state + B @ effective_u + interaction
+        elif scenario == "delayed_sleep":
+            previous_d = inputs[day - 1, 0] if day > 0 else d
+            effective_u = np.array([previous_d, e, s])
+            state = A @ state + B @ effective_u
+        elif scenario in {"correlated_noise", "person_shift"}:
+            state = A @ state + B @ u
+        else:
+            raise ValueError(
+                "scenario must be one of: nonlinear_saturation, "
+                "delayed_sleep, correlated_noise, person_shift"
+            )
+
+        process_noise = rng.multivariate_normal(
+            np.zeros(STATE_DIM),
+            Q,
+        )
+        state = state + process_noise
+        states[day] = state
+
+    observations = states[:, :2] + _draw_noise(
+        measurement_cov,
+        rng,
+        size=days,
+    )
+
+    return MismatchDataset(
+        true_states=states,
+        inputs=inputs,
+        observations=observations,
+        scenario=scenario,
+    )
+
+
+def compare_scenarios(
+    config: StateSpaceConfig,
+    scenarios: tuple[str, ...] = (
+        "nonlinear_saturation",
+        "delayed_sleep",
+        "correlated_noise",
+        "person_shift",
+    ),
+    days: int = 180,
+    seed: int = 42,
+) -> dict[str, MismatchDataset]:
+    return {
+        name: simulate_mismatched_process(config, days, seed, name)
+        for name in scenarios
+    }
+
+
+============================================================
+FILE: .\model\robustness.py
+============================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from .experiment import FilteredDataset, mae_by_state, rmse_by_state, run_filter
+from .mismatch import MismatchDataset
+from .state_space import StateSpaceConfig
+
+
+@dataclass(frozen=True)
+class RobustnessResult:
+    scenario: str
+    rmse_fatigue: float
+    rmse_recovery: float
+    rmse_load: float
+    mae_fatigue: float
+    mae_recovery: float
+    mae_load: float
+    mean_normalized_innovation: float
+
+
+def _normalized_innovation(
+    config: StateSpaceConfig,
+    dataset: MismatchDataset,
+    filtered: FilteredDataset,
+) -> float:
+    """Summarize normalized residual size for observed channels.
+
+    Large values indicate that observations are systematically less
+    compatible with the assumed model/noise configuration.
+    """
+    values = []
+    for i, y in enumerate(dataset.observations):
+        if not np.all(np.isfinite(y)):
+            continue
+        residual = y - config.C @ filtered.predicted_states[i]
+        # Innovation covariance from the predicted covariance is not stored,
+        # so use a dimension-normalized residual magnitude as a transparent
+        # diagnostic rather than pretending it is a full likelihood score.
+        scale = np.sqrt(np.diag(config.R))
+        values.append(np.mean(np.abs(residual) / scale))
+    return float(np.mean(values))
+
+
+def evaluate_mismatch(
+    config: StateSpaceConfig,
+    dataset: MismatchDataset,
+    warmup: int = 30,
+) -> RobustnessResult:
+    filtered = run_filter(
+        config,
+        type(
+            "DatasetAdapter",
+            (),
+            {
+                "inputs": dataset.inputs,
+                "observations": dataset.observations,
+            },
+        )(),
+    )
+
+    rmse = rmse_by_state(
+        dataset.true_states[warmup:],
+        filtered.states[warmup:],
+    )
+    mae = mae_by_state(
+        dataset.true_states[warmup:],
+        filtered.states[warmup:],
+    )
+
+    return RobustnessResult(
+        scenario=dataset.scenario,
+        rmse_fatigue=float(rmse[0]),
+        rmse_recovery=float(rmse[1]),
+        rmse_load=float(rmse[2]),
+        mae_fatigue=float(mae[0]),
+        mae_recovery=float(mae[1]),
+        mae_load=float(mae[2]),
+        mean_normalized_innovation=_normalized_innovation(
+            config, dataset, filtered
+        ),
+    )
+
+
+def evaluate_all_mismatches(
+    config: StateSpaceConfig,
+    datasets: dict[str, MismatchDataset],
+    warmup: int = 30,
+) -> list[RobustnessResult]:
+    return [
+        evaluate_mismatch(config, dataset, warmup=warmup)
+        for dataset in datasets.values()
+    ]
+
+
+============================================================
+FILE: .\model\identifiability.py
+============================================================
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+
+from .state_space import INPUT_DIM, STATE_DIM, OBS_DIM, StateSpaceConfig
+
+
+@dataclass(frozen=True)
+class ObservabilityReport:
+    """Local linear observability diagnostics for (A, C)."""
+
+    rank: int
+    state_dimension: int
+    singular_values: np.ndarray
+    condition_number: float
+    observable: bool
+
+
+@dataclass(frozen=True)
+class ExcitationReport:
+    """Rank/conditioning diagnostics for the transition regressor [X, U]."""
+
+    rank: int
+    parameter_regressor_dimension: int
+    singular_values: np.ndarray
+    condition_number: float
+    full_rank: bool
+
+
+@dataclass(frozen=True)
+class ParameterPlan:
+    """Explicit staged parameterization for estimation."""
+
+    name: str
+    free_A: tuple[tuple[int, int], ...]
+    free_B: tuple[tuple[int, int], ...]
+    free_Q_diagonal: tuple[int, ...]
+    free_R_diagonal: tuple[int, ...]
+    total_parameters: int
+    rationale: str
+
+
+def observability_matrix(config: StateSpaceConfig) -> np.ndarray:
+    """Build O = [C; C A; C A^2] for the 3-state model."""
+    blocks = []
+    power = np.eye(STATE_DIM)
+    for _ in range(STATE_DIM):
+        blocks.append(config.C @ power)
+        power = power @ config.A
+    return np.vstack(blocks)
+
+
+def observability_report(
+    config: StateSpaceConfig,
+    rank_tolerance: float = 1e-9,
+) -> ObservabilityReport:
+    matrix = observability_matrix(config)
+    singular_values = np.linalg.svd(matrix, compute_uv=False)
+    rank = int(np.linalg.matrix_rank(matrix, tol=rank_tolerance))
+    nonzero = singular_values[singular_values > rank_tolerance]
+    condition_number = (
+        float(nonzero.max() / nonzero.min())
+        if len(nonzero)
+        else float("inf")
+    )
+
+    return ObservabilityReport(
+        rank=rank,
+        state_dimension=STATE_DIM,
+        singular_values=singular_values,
+        condition_number=condition_number,
+        observable=(rank == STATE_DIM),
+    )
+
+
+def transition_regressor(
+    states: np.ndarray,
+    inputs: np.ndarray,
+) -> np.ndarray:
+    """Construct the known-state transition regressor [X_t, U_t].
+
+    This diagnostic is intentionally a best-case experiment: true hidden
+    states are available in synthetic data. Real fitting cannot assume this.
+    """
+    states = np.asarray(states, dtype=float)
+    inputs = np.asarray(inputs, dtype=float)
+
+    if states.ndim != 2 or states.shape[1] != STATE_DIM:
+        raise ValueError("states must have shape (n, 3)")
+    if inputs.ndim != 2 or inputs.shape[1] != INPUT_DIM:
+        raise ValueError("inputs must have shape (n, 3)")
+    if len(states) != len(inputs):
+        raise ValueError("states and inputs must have equal length")
+
+    return np.column_stack([states, inputs])
+
+
+def excitation_report(
+    states: np.ndarray,
+    inputs: np.ndarray,
+    rank_tolerance: float = 1e-9,
+) -> ExcitationReport:
+    XU = transition_regressor(states, inputs)
+    singular_values = np.linalg.svd(XU, compute_uv=False)
+    rank = int(np.linalg.matrix_rank(XU, tol=rank_tolerance))
+    nonzero = singular_values[singular_values > rank_tolerance]
+    condition_number = (
+        float(nonzero.max() / nonzero.min())
+        if len(nonzero)
+        else float("inf")
+    )
+
+    dimension = STATE_DIM + INPUT_DIM
+    return ExcitationReport(
+        rank=rank,
+        parameter_regressor_dimension=dimension,
+        singular_values=singular_values,
+        condition_number=condition_number,
+        full_rank=(rank == dimension),
+    )
+
+
+def default_parameter_plans() -> tuple[ParameterPlan, ...]:
+    """Return progressively richer, explicitly constrained parameter sets."""
+    observed_A = (
+        (0, 0), (0, 1),
+        (1, 0), (1, 1),
+    )
+    observed_B = tuple((row, col) for row in (0, 1) for col in range(3))
+
+    latent_A = (
+        (0, 2), (1, 2),
+        (2, 0), (2, 1), (2, 2),
+    )
+    latent_B = tuple((2, col) for col in range(3))
+
+    return (
+        ParameterPlan(
+            name="population_observed_core",
+            free_A=observed_A,
+            free_B=observed_B,
+            free_Q_diagonal=(0, 1),
+            free_R_diagonal=(0, 1),
+            total_parameters=4 + 6 + 2 + 2,
+            rationale=(
+                "Estimate dynamics directly connected to observed fatigue/"
+                "recovery first. Keep latent-load dynamics fixed until "
+                "observability/excitation evidence supports expansion."
+            ),
+        ),
+        ParameterPlan(
+            name="population_full_latent",
+            free_A=observed_A + latent_A,
+            free_B=observed_B + latent_B,
+            free_Q_diagonal=(0, 1, 2),
+            free_R_diagonal=(0, 1),
+            total_parameters=9 + 9 + 3 + 2,
+            rationale=(
+                "Add latent-load couplings only after the core model has "
+                "passed recovery/forecast validation."
+            ),
+        ),
+        ParameterPlan(
+            name="personal_adaptation_restricted",
+            free_A=((0, 0), (1, 1)),
+            free_B=((0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)),
+            free_Q_diagonal=(),
+            free_R_diagonal=(),
+            total_parameters=2 + 6,
+            rationale=(
+                "Adapt only high-value observable-state dynamics per person; "
+                "keep population latent dynamics and noise fixed initially."
+            ),
+        ),
+    )
